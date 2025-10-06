@@ -1,21 +1,25 @@
-from urllib.parse import urlparse
-
 import re
 import socket
+import ssl
 import sys
+from urllib.parse import urlparse
 
 
 class URL:
     def __init__(self, url: str):
         parsed_url = urlparse(url)
         self.scheme = parsed_url.scheme
+        assert self.scheme in ["http", "https"]
         self.host = parsed_url.hostname
         self.path = parsed_url.path
+        self.port = parsed_url.port or 443 if self.scheme == "https" else 80
 
     def request(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        port = 80
-        s.connect((self.host, port))
+        if self.scheme == "https":
+            ctx = ssl.create_default_context()
+            s = ctx.wrap_socket(s, server_hostname=self.host)
+        s.connect((self.host, self.port))
 
         request = f"GET {self.path} HTTP/1.1\r\n"
         request += f"Host: {self.host}\r\n"
