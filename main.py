@@ -2,6 +2,7 @@ import re
 import socket
 import ssl
 import sys
+import tkinter
 from urllib.parse import urlparse
 
 
@@ -44,15 +45,20 @@ class URL:
         return body
 
 
-def show(body: str):
-    text_only = re.sub(r"<[^>]*>", "", body)
-    print(text_only.strip())
+class Browser:
+    def __init__(self):
+        self.window = tkinter.Tk()
+        self.canvas = tkinter.Canvas(self.window, width=800, height=600)
+        self.canvas.pack()
 
+    def load(self, url: URL):
+        body = url.request()
 
-def load(url: URL):
-    body = url.request()
-    show(body)
+        self.canvas.create_rectangle(10, 20, 400, 300)
+        self.canvas.create_oval(100, 100, 150, 150)
+        self.canvas.create_text(200, 150, text="Hi!")
 
 
 if __name__ == "__main__":
-    load(URL(sys.argv[1]))
+    Browser().load(URL(sys.argv[1]))
+    tkinter.mainloop()
