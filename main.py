@@ -51,12 +51,21 @@ class Browser:
         self.canvas = tkinter.Canvas(self.window, width=800, height=600)
         self.canvas.pack()
 
+    def lex(self, body: str):
+        text = re.sub(r"<[^>]*>", "", body).strip()
+        return text
+
     def load(self, url: URL):
         body = url.request()
-
-        self.canvas.create_rectangle(10, 20, 400, 300)
-        self.canvas.create_oval(100, 100, 150, 150)
-        self.canvas.create_text(200, 150, text="Hi!")
+        text = self.lex(body)
+        HSTEP, VSTEP = 13, 18
+        cursor_x, cursor_y = HSTEP, VSTEP
+        for c in text:
+            self.canvas.create_text(cursor_x, cursor_y, text=c)
+            cursor_x += HSTEP
+            if cursor_x > 800 - HSTEP:
+                cursor_x = HSTEP
+                cursor_y += VSTEP
 
 
 if __name__ == "__main__":
