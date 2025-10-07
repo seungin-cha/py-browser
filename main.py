@@ -69,7 +69,8 @@ class Browser:
     def draw(self):
         self.canvas.delete("all")
         for x, y, c in self.display_list:
-            self.canvas.create_text(x, y - self.scroll, text=c)
+            if -VSTEP < y - self.scroll <= WIN_HEIGHT:
+                self.canvas.create_text(x, y - self.scroll, text=c)
 
     def load(self, url: URL):
         body = url.request()
