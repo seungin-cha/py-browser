@@ -2,7 +2,12 @@ import re
 import socket
 import ssl
 import sys
+import tkinter
 from urllib.parse import urlparse
+
+WIN_WIDTH, WIN_HEIGHT = 800, 600
+HSTEP, VSTEP = 13, 18
+SCROLL_STEP = 100
 
 
 class URL:
@@ -44,15 +49,48 @@ class URL:
         return body
 
 
-def show(body: str):
-    text_only = re.sub(r"<[^>]*>", "", body)
-    print(text_only.strip())
+class Browser:
+    def __init__(self):
+        self.window = tkinter.Tk()
+        self.canvas = tkinter.Canvas(self.window, width=WIN_WIDTH, height=WIN_HEIGHT)
+        self.canvas.pack()
+        self.scroll = 0
+
+        self.window.bind("<Down>", self.scroll_down)
+
+    def scroll_down(self, event):
+        self.scroll += SCROLL_STEP
+        self.draw()
+
+    def lex(self, body: str):
+        text = re.sub(r"<[^>]*>", "", body).strip()
+        return text
+
+    def draw(self):
+        self.canvas.delete("all")
+        for x, y, c in self.display_list:
+            if -VSTEP < y - self.scroll <= WIN_HEIGHT:
+                self.canvas.create_text(x, y - self.scroll, text=c)
+
+    def load(self, url: URL):
+        body = url.request()
+        text = self.lex(body)
+        self.display_list = layout(text)
+        self.draw()
 
 
-def load(url: URL):
-    body = url.request()
-    show(body)
+def layout(text: str):
+    display_list = []
+    cursor_x, cursor_y = HSTEP, VSTEP
+    for c in text:
+        display_list.append((cursor_x, cursor_y, c))
+        cursor_x += HSTEP
+        if cursor_x > WIN_WIDTH - HSTEP:
+            cursor_x = HSTEP
+            cursor_y += VSTEP
+    return display_list
 
 
 if __name__ == "__main__":
-    load(URL(sys.argv[1]))
+    Browser().load(URL(sys.argv[1]))
+    tkinter.mainloop()
