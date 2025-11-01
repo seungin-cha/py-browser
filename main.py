@@ -65,6 +65,7 @@ class Layout:
         self.display_list = []
         self.cursor_x = HSTEP
         self.cursor_y = VSTEP
+        self.size = 12
         self.slant = "roman"
         self.weight = "normal"
         for token in tokens:
@@ -82,6 +83,14 @@ class Layout:
                 self.cursor_x += w + font.measure(" ")
         elif isinstance(token, Tag):
             match token.tag:
+                case "small":
+                    self.size -= 2
+                case "/small":
+                    self.size += 2
+                case "big":
+                    self.size += 4
+                case "/big":
+                    self.size -= 4
                 case "i":
                     self.slant = "italic"
                 case "/i":
