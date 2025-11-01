@@ -3,6 +3,7 @@ import socket
 import ssl
 import sys
 import tkinter
+import tkinter.font
 from urllib.parse import urlparse
 
 WIN_WIDTH, WIN_HEIGHT = 800, 600
@@ -49,6 +50,16 @@ class URL:
         return body
 
 
+class Text:
+    def __init__(self, text: str):
+        self.text = text
+
+
+class Tag:
+    def __init__(self, tag: str):
+        self.tag = tag
+
+
 class Browser:
     def __init__(self):
         self.window = tkinter.Tk()
@@ -63,31 +74,66 @@ class Browser:
         self.draw()
 
     def lex(self, body: str):
-        text = re.sub(r"<[^>]*>", "", body).strip()
-        return text
+        out = []
+        buffer = ""
+        in_tag = False
+        for c in body:
+            if c == "<":
+                in_tag = True
+                if buffer:
+                    out.append(Text(buffer))
+                buffer = ""
+            elif c == ">":
+                in_tag = False
+                out.append(Tag(buffer))
+                buffer = ""
+            else:
+                buffer += c
+        if not in_tag and buffer:
+            out.append(Text(buffer))
+        return out
 
     def draw(self):
         self.canvas.delete("all")
-        for x, y, c in self.display_list:
+        for x, y, word, font in self.display_list:
             if -VSTEP < y - self.scroll <= WIN_HEIGHT:
-                self.canvas.create_text(x, y - self.scroll, text=c)
+                self.canvas.create_text(
+                    x, y - self.scroll, text=word, font=font, anchor="nw"
+                )
 
     def load(self, url: URL):
         body = url.request()
-        text = self.lex(body)
-        self.display_list = layout(text)
+        tokens = self.lex(body)
+        self.display_list = layout(tokens)
         self.draw()
 
 
-def layout(text: str):
+def layout(tokens):
+    slant = "roman"
+    weight = "normal"
     display_list = []
     cursor_x, cursor_y = HSTEP, VSTEP
-    for c in text:
-        display_list.append((cursor_x, cursor_y, c))
-        cursor_x += HSTEP
-        if cursor_x > WIN_WIDTH - HSTEP:
-            cursor_x = HSTEP
-            cursor_y += VSTEP
+    for token in tokens:
+        if isinstance(token, Text):
+            for word in token.text.split():
+                font = tkinter.font.Font(size=16, slant=slant, weight=weight)
+                w = font.measure(word)
+                if cursor_x + w > WIN_WIDTH - HSTEP:
+                    cursor_y += font.metrics("linespace") * 1.25
+                    cursor_x = HSTEP
+                display_list.append((cursor_x, cursor_y, word, font))
+                cursor_x += w + font.measure(" ")
+        elif isinstance(token, Tag):
+            match token.tag:
+                case "i":
+                    slant = "italic"
+                case "/i":
+                    slant = "roman"
+                case "b":
+                    weight = "bold"
+                case "/b":
+                    weight = "normal"
+
     return display_list
 
 
