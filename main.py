@@ -60,6 +60,38 @@ class Tag:
         self.tag = tag
 
 
+class Layout:
+    def __init__(self, tokens):
+        self.display_list = []
+        self.cursor_x = HSTEP
+        self.cursor_y = VSTEP
+        self.slant = "roman"
+        self.weight = "normal"
+        for token in tokens:
+            self.process(token)
+
+    def process(self, token):
+        if isinstance(token, Text):
+            for word in token.text.split():
+                font = tkinter.font.Font(size=16, slant=self.slant, weight=self.weight)
+                w = font.measure(word)
+                if self.cursor_x + w > WIN_WIDTH - HSTEP:
+                    self.cursor_y += font.metrics("linespace") * 1.25
+                    self.cursor_x = HSTEP
+                self.display_list.append((self.cursor_x, self.cursor_y, word, font))
+                self.cursor_x += w + font.measure(" ")
+        elif isinstance(token, Tag):
+            match token.tag:
+                case "i":
+                    self.slant = "italic"
+                case "/i":
+                    self.slant = "roman"
+                case "b":
+                    self.weight = "bold"
+                case "/b":
+                    self.weight = "normal"
+
+
 class Browser:
     def __init__(self):
         self.window = tkinter.Tk()
@@ -104,37 +136,8 @@ class Browser:
     def load(self, url: URL):
         body = url.request()
         tokens = self.lex(body)
-        self.display_list = layout(tokens)
+        self.display_list = Layout(tokens).display_list
         self.draw()
-
-
-def layout(tokens):
-    slant = "roman"
-    weight = "normal"
-    display_list = []
-    cursor_x, cursor_y = HSTEP, VSTEP
-    for token in tokens:
-        if isinstance(token, Text):
-            for word in token.text.split():
-                font = tkinter.font.Font(size=16, slant=slant, weight=weight)
-                w = font.measure(word)
-                if cursor_x + w > WIN_WIDTH - HSTEP:
-                    cursor_y += font.metrics("linespace") * 1.25
-                    cursor_x = HSTEP
-                display_list.append((cursor_x, cursor_y, word, font))
-                cursor_x += w + font.measure(" ")
-        elif isinstance(token, Tag):
-            match token.tag:
-                case "i":
-                    slant = "italic"
-                case "/i":
-                    slant = "roman"
-                case "b":
-                    weight = "bold"
-                case "/b":
-                    weight = "normal"
-
-    return display_list
 
 
 if __name__ == "__main__":
