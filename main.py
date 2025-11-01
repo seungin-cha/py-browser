@@ -3,6 +3,7 @@ import socket
 import ssl
 import sys
 import tkinter
+import tkinter.font
 from urllib.parse import urlparse
 
 WIN_WIDTH, WIN_HEIGHT = 800, 600
@@ -49,6 +50,57 @@ class URL:
         return body
 
 
+class Text:
+    def __init__(self, text: str):
+        self.text = text
+
+
+class Tag:
+    def __init__(self, tag: str):
+        self.tag = tag
+
+
+class Layout:
+    def __init__(self, tokens):
+        self.display_list = []
+        self.cursor_x = HSTEP
+        self.cursor_y = VSTEP
+        self.size = 12
+        self.slant = "roman"
+        self.weight = "normal"
+        for token in tokens:
+            self.process(token)
+
+    def process(self, token):
+        if isinstance(token, Text):
+            for word in token.text.split():
+                font = tkinter.font.Font(size=16, slant=self.slant, weight=self.weight)
+                w = font.measure(word)
+                if self.cursor_x + w > WIN_WIDTH - HSTEP:
+                    self.cursor_y += font.metrics("linespace") * 1.25
+                    self.cursor_x = HSTEP
+                self.display_list.append((self.cursor_x, self.cursor_y, word, font))
+                self.cursor_x += w + font.measure(" ")
+        elif isinstance(token, Tag):
+            match token.tag:
+                case "small":
+                    self.size -= 2
+                case "/small":
+                    self.size += 2
+                case "big":
+                    self.size += 4
+                case "/big":
+                    self.size -= 4
+                case "i":
+                    self.slant = "italic"
+                case "/i":
+                    self.slant = "roman"
+                case "b":
+                    self.weight = "bold"
+                case "/b":
+                    self.weight = "normal"
+
+
 class Browser:
     def __init__(self):
         self.window = tkinter.Tk()
@@ -63,32 +115,52 @@ class Browser:
         self.draw()
 
     def lex(self, body: str):
-        text = re.sub(r"<[^>]*>", "", body).strip()
-        return text
+        out = []
+        buffer = ""
+        in_tag = False
+        for c in body:
+            if c == "<":
+                in_tag = True
+                if buffer:
+                    out.append(Text(buffer))
+                buffer = ""
+            elif c == ">":
+                in_tag = False
+                out.append(Tag(buffer))
+                buffer = ""
+            else:
+                buffer += c
+        if not in_tag and buffer:
+            out.append(Text(buffer))
+        return out
 
     def draw(self):
         self.canvas.delete("all")
-        for x, y, c in self.display_list:
+
+        # FIXME: display multiple font size problem.
+        font1 = tkinter.font.Font(size=16)
+        font2 = tkinter.font.Font(size=20)
+        font3 = tkinter.font.Font(size=12)
+        cursor_x = 200
+        self.canvas.create_text(cursor_x, 200, text="Mixed", font=font1, anchor="nw")
+        cursor_x += font1.measure("Mixed ")
+        self.canvas.create_text(cursor_x, 200, text="big", font=font2, anchor="nw")
+        cursor_x += font2.measure("big ")
+        self.canvas.create_text(cursor_x, 200, text="and", font=font1, anchor="nw")
+        cursor_x += font1.measure("and ")
+        self.canvas.create_text(cursor_x, 200, text="small", font=font3, anchor="nw")
+
+        for x, y, word, font in self.display_list:
             if -VSTEP < y - self.scroll <= WIN_HEIGHT:
-                self.canvas.create_text(x, y - self.scroll, text=c)
+                self.canvas.create_text(
+                    x, y - self.scroll, text=word, font=font, anchor="nw"
+                )
 
     def load(self, url: URL):
         body = url.request()
-        text = self.lex(body)
-        self.display_list = layout(text)
+        tokens = self.lex(body)
+        self.display_list = Layout(tokens).display_list
         self.draw()
-
-
-def layout(text: str):
-    display_list = []
-    cursor_x, cursor_y = HSTEP, VSTEP
-    for c in text:
-        display_list.append((cursor_x, cursor_y, c))
-        cursor_x += HSTEP
-        if cursor_x > WIN_WIDTH - HSTEP:
-            cursor_x = HSTEP
-            cursor_y += VSTEP
-    return display_list
 
 
 if __name__ == "__main__":
