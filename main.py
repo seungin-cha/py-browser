@@ -136,6 +136,20 @@ class Browser:
 
     def draw(self):
         self.canvas.delete("all")
+
+        # FIXME: display multiple font size problem.
+        font1 = tkinter.font.Font(size=16)
+        font2 = tkinter.font.Font(size=20)
+        font3 = tkinter.font.Font(size=12)
+        cursor_x = 200
+        self.canvas.create_text(cursor_x, 200, text="Mixed", font=font1, anchor="nw")
+        cursor_x += font1.measure("Mixed ")
+        self.canvas.create_text(cursor_x, 200, text="big", font=font2, anchor="nw")
+        cursor_x += font2.measure("big ")
+        self.canvas.create_text(cursor_x, 200, text="and", font=font1, anchor="nw")
+        cursor_x += font1.measure("and ")
+        self.canvas.create_text(cursor_x, 200, text="small", font=font3, anchor="nw")
+
         for x, y, word, font in self.display_list:
             if -VSTEP < y - self.scroll <= WIN_HEIGHT:
                 self.canvas.create_text(
