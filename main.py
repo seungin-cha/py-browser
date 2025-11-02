@@ -3,11 +3,23 @@ import socket
 import ssl
 import sys
 import tkinter
+import tkinter.font
 from urllib.parse import urlparse
 
 WIN_WIDTH, WIN_HEIGHT = 800, 600
 HSTEP, VSTEP = 13, 18
 SCROLL_STEP = 100
+
+FONTS = {}
+
+
+def get_font(size, slant, weight):
+    key = (size, slant, weight)
+    if key not in FONTS:
+        font = tkinter.font.Font(size=size, slant=slant, weight=weight)
+        label = tkinter.Label(font=font)
+        FONTS[key] = (font, label)
+    return FONTS[key][0]
 
 
 class URL:
@@ -41,12 +53,88 @@ class URL:
                 break
             header, value = line.split(":", 1)
             response_headers[header.casefold()] = value.strip()
-        assert "transfer-encoding" not in response_headers
-        assert "content-encoding" not in response_headers
         body = response.read(int(response_headers.get("content-length", 0)))
         s.close()
 
         return body
+
+
+class Text:
+    def __init__(self, text: str):
+        self.text = text
+
+
+class Tag:
+    def __init__(self, tag: str):
+        self.tag = tag
+
+
+class Layout:
+    def __init__(self, tokens):
+        self.display_list = []
+        self.line = []
+        self.cursor_x = HSTEP
+        self.cursor_y = VSTEP
+        self.size = 12
+        self.slant = "roman"
+        self.weight = "normal"
+
+        for token in tokens:
+            self.process(token)
+        self.flush()
+
+    def process(self, token):
+        if isinstance(token, Text):
+            for word in token.text.split():
+                font = get_font(self.size, self.slant, self.weight)
+                w = font.measure(word)
+                if self.cursor_x + w > WIN_WIDTH - HSTEP:
+                    self.flush()
+                self.line.append((self.cursor_x, word, font))
+                self.cursor_x += w + font.measure(" ")
+        elif isinstance(token, Tag):
+            match token.tag:
+                case "small":
+                    self.size -= 2
+                case "/small":
+                    self.size += 2
+                case "big":
+                    self.size += 4
+                case "/big":
+                    self.size -= 4
+                case "i":
+                    self.slant = "italic"
+                case "/i":
+                    self.slant = "roman"
+                case "b":
+                    self.weight = "bold"
+                case "/b":
+                    self.weight = "normal"
+                case "br":
+                    self.flush()
+                case "/p":
+                    self.flush()
+                    self.cursor_y += VSTEP
+
+    def flush(self):
+        if not self.line:
+            return
+
+        # Calculate baseline for the current line
+        metrics = [font.metrics() for _, _, font in self.line]
+        max_ascent = max(m["ascent"] for m in metrics)
+        baseline = self.cursor_y + 1.25 * max_ascent
+
+        # Add words to display list with adjusted y position
+        for x, word, font in self.line:
+            y = baseline - font.metrics("ascent")
+            self.display_list.append((x, y, word, font))
+
+        # Clear the current line and update cursor positions
+        max_descent = max(m["descent"] for m in metrics)
+        self.cursor_y = baseline + 1.25 * max_descent
+        self.cursor_x = HSTEP
+        self.line = []
 
 
 class Browser:
@@ -63,32 +151,38 @@ class Browser:
         self.draw()
 
     def lex(self, body: str):
-        text = re.sub(r"<[^>]*>", "", body).strip()
-        return text
+        out = []
+        buffer = ""
+        in_tag = False
+        for c in body:
+            if c == "<":
+                in_tag = True
+                if buffer:
+                    out.append(Text(buffer))
+                buffer = ""
+            elif c == ">":
+                in_tag = False
+                out.append(Tag(buffer))
+                buffer = ""
+            else:
+                buffer += c
+        if not in_tag and buffer:
+            out.append(Text(buffer))
+        return out
 
     def draw(self):
         self.canvas.delete("all")
-        for x, y, c in self.display_list:
+        for x, y, word, font in self.display_list:
             if -VSTEP < y - self.scroll <= WIN_HEIGHT:
-                self.canvas.create_text(x, y - self.scroll, text=c)
+                self.canvas.create_text(
+                    x, y - self.scroll, text=word, font=font, anchor="nw"
+                )
 
     def load(self, url: URL):
         body = url.request()
-        text = self.lex(body)
-        self.display_list = layout(text)
+        tokens = self.lex(body)
+        self.display_list = Layout(tokens).display_list
         self.draw()
-
-
-def layout(text: str):
-    display_list = []
-    cursor_x, cursor_y = HSTEP, VSTEP
-    for c in text:
-        display_list.append((cursor_x, cursor_y, c))
-        cursor_x += HSTEP
-        if cursor_x > WIN_WIDTH - HSTEP:
-            cursor_x = HSTEP
-            cursor_y += VSTEP
-    return display_list
 
 
 if __name__ == "__main__":
