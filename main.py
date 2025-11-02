@@ -42,8 +42,6 @@ class URL:
                 break
             header, value = line.split(":", 1)
             response_headers[header.casefold()] = value.strip()
-        assert "transfer-encoding" not in response_headers
-        assert "content-encoding" not in response_headers
         body = response.read(int(response_headers.get("content-length", 0)))
         s.close()
 
@@ -74,18 +72,6 @@ class Layout:
             self.process(token)
         self.flush()
 
-        # REMOVE THIS: Test mixed font sizes problem
-        test_tokens = [
-            ("Mixed", tkinter.font.Font(size=16)),
-            ("big", tkinter.font.Font(size=20)),
-            ("and", tkinter.font.Font(size=16)),
-            ("small", tkinter.font.Font(size=12)),
-        ]
-        for word, font in test_tokens:
-            self.line.append((self.cursor_x, word, font))
-            self.cursor_x += font.measure(word) + font.measure(" ")
-        self.flush()
-
     def process(self, token):
         if isinstance(token, Text):
             for word in token.text.split():
@@ -113,6 +99,11 @@ class Layout:
                     self.weight = "bold"
                 case "/b":
                     self.weight = "normal"
+                case "br":
+                    self.flush()
+                case "/p":
+                    self.flush()
+                    self.cursor_y += VSTEP
 
     def flush(self):
         if not self.line:
