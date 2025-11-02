@@ -10,6 +10,17 @@ WIN_WIDTH, WIN_HEIGHT = 800, 600
 HSTEP, VSTEP = 13, 18
 SCROLL_STEP = 100
 
+FONTS = {}
+
+
+def get_font(size, slant, weight):
+    key = (size, slant, weight)
+    if key not in FONTS:
+        font = tkinter.font.Font(size=size, slant=slant, weight=weight)
+        label = tkinter.Label(font=font)
+        FONTS[key] = (font, label)
+    return FONTS[key][0]
+
 
 class URL:
     def __init__(self, url: str):
@@ -75,7 +86,7 @@ class Layout:
     def process(self, token):
         if isinstance(token, Text):
             for word in token.text.split():
-                font = tkinter.font.Font(size=16, slant=self.slant, weight=self.weight)
+                font = get_font(self.size, self.slant, self.weight)
                 w = font.measure(word)
                 if self.cursor_x + w > WIN_WIDTH - HSTEP:
                     self.flush()
