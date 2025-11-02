@@ -63,13 +63,28 @@ class Tag:
 class Layout:
     def __init__(self, tokens):
         self.display_list = []
+        self.line = []
         self.cursor_x = HSTEP
         self.cursor_y = VSTEP
         self.size = 12
         self.slant = "roman"
         self.weight = "normal"
+
         for token in tokens:
             self.process(token)
+        self.flush()
+
+        # REMOVE THIS: Test mixed font sizes problem
+        test_tokens = [
+            ("Mixed", tkinter.font.Font(size=16)),
+            ("big", tkinter.font.Font(size=20)),
+            ("and", tkinter.font.Font(size=16)),
+            ("small", tkinter.font.Font(size=12)),
+        ]
+        for word, font in test_tokens:
+            self.line.append((self.cursor_x, word, font))
+            self.cursor_x += font.measure(word) + font.measure(" ")
+        self.flush()
 
     def process(self, token):
         if isinstance(token, Text):
@@ -77,9 +92,8 @@ class Layout:
                 font = tkinter.font.Font(size=16, slant=self.slant, weight=self.weight)
                 w = font.measure(word)
                 if self.cursor_x + w > WIN_WIDTH - HSTEP:
-                    self.cursor_y += font.metrics("linespace") * 1.25
-                    self.cursor_x = HSTEP
-                self.display_list.append((self.cursor_x, self.cursor_y, word, font))
+                    self.flush()
+                self.line.append((self.cursor_x, word, font))
                 self.cursor_x += w + font.measure(" ")
         elif isinstance(token, Tag):
             match token.tag:
@@ -99,6 +113,26 @@ class Layout:
                     self.weight = "bold"
                 case "/b":
                     self.weight = "normal"
+
+    def flush(self):
+        if not self.line:
+            return
+
+        # Calculate baseline for the current line
+        metrics = [font.metrics() for _, _, font in self.line]
+        max_ascent = max(m["ascent"] for m in metrics)
+        baseline = self.cursor_y + 1.25 * max_ascent
+
+        # Add words to display list with adjusted y position
+        for x, word, font in self.line:
+            y = baseline - font.metrics("ascent")
+            self.display_list.append((x, y, word, font))
+
+        # Clear the current line and update cursor positions
+        max_descent = max(m["descent"] for m in metrics)
+        self.cursor_y = baseline + 1.25 * max_descent
+        self.cursor_x = HSTEP
+        self.line = []
 
 
 class Browser:
@@ -136,20 +170,6 @@ class Browser:
 
     def draw(self):
         self.canvas.delete("all")
-
-        # FIXME: display multiple font size problem.
-        font1 = tkinter.font.Font(size=16)
-        font2 = tkinter.font.Font(size=20)
-        font3 = tkinter.font.Font(size=12)
-        cursor_x = 200
-        self.canvas.create_text(cursor_x, 200, text="Mixed", font=font1, anchor="nw")
-        cursor_x += font1.measure("Mixed ")
-        self.canvas.create_text(cursor_x, 200, text="big", font=font2, anchor="nw")
-        cursor_x += font2.measure("big ")
-        self.canvas.create_text(cursor_x, 200, text="and", font=font1, anchor="nw")
-        cursor_x += font1.measure("and ")
-        self.canvas.create_text(cursor_x, 200, text="small", font=font3, anchor="nw")
-
         for x, y, word, font in self.display_list:
             if -VSTEP < y - self.scroll <= WIN_HEIGHT:
                 self.canvas.create_text(
